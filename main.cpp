@@ -1,11 +1,4 @@
-/* $begin tinymain */
-/*
- * tiny.c - A simple, iterative HTTP/1.0 Web server that uses the
- *     GET method to serve static and dynamic content.
- *
- * Updated 11/2019 droh
- *   - Fixed sprintf() aliasing issue in serve_static(), and clienterror().
- */
+#include "toy_web.h"
 
 void doit(int fd);
 void read_requesthdrs(rio_t *rp);
@@ -18,27 +11,30 @@ void clienterror(int fd, char *cause, char *errnum,
 
 int main(int argc, char **argv)
 {
-    int listenfd, connfd;
-    char hostname[MAXLINE], port[MAXLINE];
-    socklen_t clientlen;
-    struct sockaddr_storage clientaddr;
+    int server_sock, client_sock;
+    socklen_t client_addr_len;
+    struct sockaddr_in client_addr;
 
     /* Check command line args */
     if (argc != 2) {
-        fprintf(stderr, "usage: %s <port>\n", argv[0]);
+        cerr << "usage: " << argv[0] << " <port>" << endl;
         exit(1);
     }
 
-    listenfd = Open_listenfd(argv[1]);
-    while (1) {
-        clientlen = sizeof(clientaddr);
-        connfd = Accept(listenfd, (SA *)&clientaddr, &clientlen); //line:netp:tiny:accept
-        Getnameinfo((SA *) &clientaddr, clientlen, hostname, MAXLINE,
-                    port, MAXLINE, 0);
-        printf("Accepted connection from (%s, %s)\n", hostname, port);
+    server_sock = listen_on(argv[1]);
+    while (true) {
+        client_addr_len = sizeof(client_addr);
+        client_sock = accept(server_sock, (struct sockaddr*)&client_addr, &client_addr_len);
+        if (client_sock == -1) {
+            error_handling("accept() error");
+        }
+
+        client_info(client_sock, client_addr);
+
         doit(connfd);                                             //line:netp:tiny:doit
-        Close(connfd);                                            //line:netp:tiny:close
+        close(client_sock);                                       //line:netp:tiny:close
     }
+    close(server_sock);
 }
 /* $end tinymain */
 
