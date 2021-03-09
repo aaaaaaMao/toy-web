@@ -1,7 +1,5 @@
 #include "toy_web.h"
 
-void doit(int fd);
-void read_requesthdrs(rio_t *rp);
 int parse_uri(char *uri, char *filename, char *cgiargs);
 void serve_static(int fd, char *filename, int filesize);
 void get_filetype(char *filename, char *filetype);
@@ -31,17 +29,13 @@ int main(int argc, char **argv)
 
         client_info(client_sock, client_addr);
 
-        doit(connfd);                                             //line:netp:tiny:doit
-        close(client_sock);                                       //line:netp:tiny:close
+        request_handler(client_sock);
+
+        close(client_sock);
     }
     close(server_sock);
 }
-/* $end tinymain */
 
-/*
- * doit - handle one HTTP request/response transaction
- */
-/* $begin doit */
 void doit(int fd)
 {
     int is_static;
@@ -89,56 +83,6 @@ void doit(int fd)
     }
 }
 /* $end doit */
-
-/*
- * read_requesthdrs - read HTTP request headers
- */
-/* $begin read_requesthdrs */
-void read_requesthdrs(rio_t *rp)
-{
-    char buf[MAXLINE];
-
-    Rio_readlineb(rp, buf, MAXLINE);
-    printf("%s", buf);
-    while(strcmp(buf, "\r\n")) {          //line:netp:readhdrs:checkterm
-        Rio_readlineb(rp, buf, MAXLINE);
-        printf("%s", buf);
-    }
-    return;
-}
-/* $end read_requesthdrs */
-
-/*
- * parse_uri - parse URI into filename and CGI args
- *             return 0 if dynamic content, 1 if static
- */
-/* $begin parse_uri */
-int parse_uri(char *uri, char *filename, char *cgiargs)
-{
-    char *ptr;
-
-    if (!strstr(uri, "cgi-bin")) {  /* Static content */ //line:netp:parseuri:isstatic
-        strcpy(cgiargs, "");                             //line:netp:parseuri:clearcgi
-        strcpy(filename, ".");                           //line:netp:parseuri:beginconvert1
-        strcat(filename, uri);                           //line:netp:parseuri:endconvert1
-        if (uri[strlen(uri)-1] == '/')                   //line:netp:parseuri:slashcheck
-            strcat(filename, "home.html");               //line:netp:parseuri:appenddefault
-        return 1;
-    }
-    else {  /* Dynamic content */                        //line:netp:parseuri:isdynamic
-        ptr = index(uri, '?');                           //line:netp:parseuri:beginextract
-        if (ptr) {
-            strcpy(cgiargs, ptr+1);
-            *ptr = '\0';
-        }
-        else
-            strcpy(cgiargs, "");                         //line:netp:parseuri:endextract
-        strcpy(filename, ".");                           //line:netp:parseuri:beginconvert2
-        strcat(filename, uri);                           //line:netp:parseuri:endconvert2
-        return 0;
-    }
-}
-/* $end parse_uri */
 
 /*
  * serve_static - copy a file back to the client
