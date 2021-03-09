@@ -52,6 +52,30 @@ void request_handler(int sock) {
     /* Parse URI from GET request */
     char file_name[MAX_LINE], cgi_args[MAX_LINE];
     bool is_static = parse_uri(uri, file_name, cgi_args);
+    struct stat file_stat;
+    if (stat(file_name, &file_stat) < 0) {
+        client_error(_write, file_name, "404", "Not found",
+                    "Toy couldn't find this file");
+        return;
+    }
+
+    if (is_static) {
+        /* Serve static content */
+        if (!(S_ISREG(file_stat.st_mode)) || !(S_IRUSR & file_stat.st_mode)) {
+            client_error(_write, file_name, "403", "Forbidden",
+                        "Toy couldn't read the file");
+            return;
+        }
+        serve_static(_write, file_name, file_stat.st_size);
+    } else {
+        /* Serve dynamic content */
+        if (!(S_ISREG(file_stat.st_mode)) || !(S_IXUSR & file_stat.st_mode)) {
+            client_error(_write, file_name, "403", "Forbidden",
+                        "Toy couldn't run the CGI program");
+            return;
+        }
+        serve_dynamic(_write, file_name, cgi_args);
+    }
 }
 
 void client_error(FILE *_write, const string &cause, const string &code,
@@ -77,8 +101,7 @@ void read_request_headers(FILE *_read) {
     }
 }
 
-bool parse_uri(char *uri, char *file_name, char *cgi_args)
-{
+bool parse_uri(char *uri, char *file_name, char *cgi_args) {
     char *ptr;
 
     if (!strstr(uri, "cgi-bin")) {
@@ -103,4 +126,57 @@ bool parse_uri(char *uri, char *file_name, char *cgi_args)
         strcat(file_name, uri);
         return false;
     }
+}
+
+void serve_static(FILE *_write, char *filename, int filesize) {
+
+    char filetype[MAX_LINE], buf[MAX_LINE];
+
+    /* Send response headers to client */
+    get_filetype(filename, filetype);
+    fputs("HTTP/1.0 200 OK\r\n", _write);
+    fputs("Server: Toy Web Server\r\n", _write);
+
+    sprintf(buf, "Content-length: %d\r\n", filesize);
+    fputs(buf, _write);
+
+    sprintf(buf, "Content-type: %s\r\n\r\n", filetype);
+    fputs(buf, _write);
+
+    /* Send response body to client */
+    FILE *content = fopen(filename, "r");
+    while (fgets(buf, MAX_LINE, content) != nullptr) {
+        fputs(buf, _write);
+    }
+    fclose(content);
+}
+
+void get_filetype(char *filename, char *filetype) {
+    if (strstr(filename, ".html"))
+        strcpy(filetype, "text/html");
+    else if (strstr(filename, ".gif"))
+        strcpy(filetype, "image/gif");
+    else if (strstr(filename, ".png"))
+        strcpy(filetype, "image/png");
+    else if (strstr(filename, ".jpg"))
+        strcpy(filetype, "image/jpeg");
+    else
+        strcpy(filetype, "text/plain");
+}
+
+void serve_dynamic(FILE *_write, char *filename, char *cgi_args)
+{
+    char buf[MAX_LINE], *empty_list[] = { nullptr };
+
+    /* Return first part of HTTP response */
+    fputs("HTTP/1.0 200 OK\r\n", _write);
+    fputs("Server: Toy Web Server\r\n", _write);
+
+//    if (Fork() == 0) { /* Child */ //line:netp:servedynamic:fork
+//        /* Real server would set all CGI vars here */
+//        setenv("QUERY_STRING", cgiargs, 1); //line:netp:servedynamic:setenv
+//        Dup2(fd, STDOUT_FILENO);         /* Redirect stdout to client */ //line:netp:servedynamic:dup2
+//        Execve(filename, emptylist, environ); /* Run CGI program */ //line:netp:servedynamic:execve
+//    }
+//    Wait(NULL); /* Parent waits for and reaps child */ //line:netp:servedynamic:wait
 }
