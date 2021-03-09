@@ -19,6 +19,7 @@ int listen_on(char *port) {
     if (listen(sock, 5) == -1) {
         error_handling("listen() error");
     }
+    return sock;
 }
 
 void client_info(const int& sock, const struct sockaddr_in& addr) {
@@ -37,7 +38,7 @@ void request_handler(int sock) {
     if (fgets(buf, MAX_LINE, _read) == nullptr) {
         return;
     }
-    cout << buf;
+    cout << buf << endl;
 
     char method[MAX_LINE], uri[MAX_LINE], version[MAX_LINE];
     sscanf(buf, "%s %s %s", method, uri, version);
@@ -48,6 +49,7 @@ void request_handler(int sock) {
     }
 
     read_request_headers(_read);
+    fclose(_read);
 
     /* Parse URI from GET request */
     char file_name[MAX_LINE], cgi_args[MAX_LINE];
@@ -76,6 +78,9 @@ void request_handler(int sock) {
         }
         serve_dynamic(_write, file_name, cgi_args);
     }
+
+    fflush(_write);
+    fclose(_write);
 }
 
 void client_error(FILE *_write, const string &cause, const string &code,
@@ -83,11 +88,13 @@ void client_error(FILE *_write, const string &cause, const string &code,
     string result = "HTTP/1.0 " + code + " " + short_msg + "\r\n" +
             "Content-type: text/html\r\n\r\n" +
             "<html><title>Tiny Error</title>" +
-            R"(<body bgcolor=""ffffff"">\r\n)" +
+            "<body>\r\n" +
             code + ": " + short_msg +
             "<p>" + long_msg + ": " + cause + "\r\n" +
-            "<hr><em>The Tiny Web server</em>\r\n";
+            "<hr><em>The Toy Web server</em>\r\n</body></html>";
     fputs(result.c_str(), _write);
+    fflush(_write);
+    fclose(_write);
 }
 
 void read_request_headers(FILE *_read) {
@@ -179,4 +186,8 @@ void serve_dynamic(FILE *_write, char *filename, char *cgi_args)
 //        Execve(filename, emptylist, environ); /* Run CGI program */ //line:netp:servedynamic:execve
 //    }
 //    Wait(NULL); /* Parent waits for and reaps child */ //line:netp:servedynamic:wait
+}
+
+void error_handling(string msg) {
+    cerr << msg << endl;
 }

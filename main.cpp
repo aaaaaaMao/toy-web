@@ -24,7 +24,6 @@ int main(int argc, char **argv)
 
         request_handler(client_sock);
 
-        close(client_sock);
     }
     close(server_sock);
 }
